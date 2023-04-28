@@ -1,7 +1,7 @@
 import math
 import numpy as np
 import random
-from scipy.spatial import cKDTree
+from scipy.spatial import cKDTree, ConvexHull
 import matplotlib.pyplot as plt
 
 
@@ -66,16 +66,62 @@ class ODR:
         # Remove this point from the list of samples
         samples.remove(point)
 
+        # print(samples)
+
         kdtree = cKDTree(samples)
         coord, ind = kdtree.query(point, k=2) # k=2 means two nearest neighbors
 
         # If multiple nearest neighbors, choose randomly
         if isinstance(ind, np.ndarray):
             ind = random.choice(ind)
-        return self.payload[ind]
+        return samples[ind]
 
 
-    def run(self, n_robots):
+    def get_cost(self):
+        '''Determine the cost of the current configuration based on load distribution
+        '''
+
+
+    def check_support_polygon(self, tol=1e-12):
+        '''Determines if CoM lies within support polygon of agents
+        '''
+        
+        # Point to check (CoM of circle for now) TODO update with actual CoM or centroid of arbirtrary object
+        point = np.array([0,0])
+        # Array of coordinates of robot support points
+        polygon = np.array([self.robot[i].pos for i in range(self.n_robots)])
+
+        # Simple line check for two robots
+        if self.n_robots < 3:
+
+            v1 = polygon[1] - polygon[0]
+            v2 = point - polygon[0]
+
+            d = np.dot(v1, v2)
+            v1_squared = np.dot(v1, v1)
+
+            if d < 0 or d > v1_squared:
+                print('CoM not supported by the robots!')
+                return False
+            else:
+                dist = np.linalg.norm(np.cross(v1, v2)) / np.sqrt(v1_squared)
+                return dist < tol
+
+        else:
+            hull = ConvexHull(polygon)
+            return all(((np.dot(eq[:-1], point) + eq[-1]) <= tol) for eq in hull.equations)
+
+
+    def move_robot(self):
+        '''Randomly move robot left or right to nearest attachment point
+        '''
+        for i in range(self.n_robots):
+            next_node = self.get_nearest_node(self.robot[i].pos)
+            self.robot[i].pos = next_node
+            print('Robot', i, 'moved to', next_node)
+
+
+    def run(self, n_robots, n_iters):
 
         # Reset and initialize map
         self.init_map()
@@ -83,24 +129,26 @@ class ODR:
         # Initialize robots
         self.init_robots(n_robots)
 
-        # Move robots just next to each other
+        # Initial position of robots next to each other
         for i in range(self.n_robots):
             self.robot[i].pos = self.payload[i] #(self.start.row, self.start.col)
             print('Robot', i, 'initial position:', self.robot[i].pos)
 
-        print('')           
+        print('')
 
-
-
-        # print(self.vertices[0].row)
 
         visited = [self.start]
         try_these = [self.start]
 
-        # Choose the next closest node
-        next_node = self.get_nearest_node((visited[0].row, visited[0].col))
-        # next_node = self.choose_next((visited[0].row, visited[0].col))
-        # print(next_node)
+        for i in range(n_iters):
+            # Move each robot to nearest node/vertex (randomly choose between the two nearest)
+
+            # next_node = self.get_nearest_node((visited[0].row, visited[0].col))
+            # print(next_node)
+
+            # Check support polygon condition
+            print(self.check_support_polygon())
+
 
 
 if __name__ == '__main__':

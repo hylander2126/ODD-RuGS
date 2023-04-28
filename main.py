@@ -37,7 +37,7 @@ goal = payload[-1]
 n_robots = 2 # Define number of robots (id=0 is first robot)
 
 ODR_Planner = ODR(payload, start, goal)
-ODR_Planner.run(n_robots)
+ODR_Planner.run(n_robots, 10)
 
 
 ## **** TEMP PLOT PAYLOAD ****
