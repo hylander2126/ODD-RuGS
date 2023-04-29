@@ -44,6 +44,7 @@ class ODR:
             self.robot.append(Robot(i))
             self.robot[i].pos = self.payload[i]
             print('Robot', i, 'initialized to position:', self.payload[i])
+        print('')
 
 
     def init_map(self):
@@ -74,12 +75,15 @@ class ODR:
         # print(samples)
 
         kdtree = cKDTree(samples)
-        coord, ind = kdtree.query(point, k=2) # k=2 means two nearest neighbors
+        coord, index = kdtree.query(point, k=2) # k=2 means two nearest neighbors
 
         # If multiple nearest neighbors, choose randomly
-        if isinstance(ind, np.ndarray):
-            ind = random.choice(ind)
-        return samples[ind]
+        # if isinstance(ind, np.ndarray):
+        #     ind = random.choice(ind)
+        # return samples[ind]
+
+        nearest_neighbors = [samples[i] for i in index]
+        return nearest_neighbors
 
 
     def get_cost(self):
@@ -116,13 +120,57 @@ class ODR:
             return all(((np.dot(eq[:-1], point) + eq[-1]) <= tol) for eq in hull.equations)
 
 
+
     def move_robots(self):
-        '''Randomly move robots to nearest attachment point
-        '''
+
+        # create a set to store the positions of all robots
+        occupied_nodes = set(robot.pos for robot in self.robot)
+        print('occupied nodes:', occupied_nodes)
+
+        # create a dictionary to store the nearest nodes for each robot
+        nearest_nodes = {i: self.get_nearest_node(self.robot[i].pos) for i in range(self.n_robots)}
+
         for i in range(self.n_robots):
-            next_node = self.get_nearest_node(self.robot[i].pos)
+            candidate_nodes = nearest_nodes[i]
+            # Select only the unoccupied node
+            next_node = [node for node in candidate_nodes if node not in occupied_nodes].pop()
+            # Record previous node for removal after updating robot
+            previous_node = self.robot[i].pos
+            # Move this robot to the new node
             self.robot[i].pos = next_node
-            # print('Robot', i, 'moved to', next_node)
+            # Update list of occupied nodes
+            occupied_nodes.remove(previous_node)
+            occupied_nodes.add(next_node)
+
+
+    
+
+
+    # def move_robots(self):
+    #     '''Randomly move robots to nearest attachment point    TODO: maybe add a small chance to NOT move a robot
+    #     '''
+    #     for i in range(self.n_robots):
+    #         # Find nearest attachment point, if occupied keep trying
+    #         is_occupied = True
+    #         while is_occupied:
+    #             next_node = self.get_nearest_node(self.robot[i].pos)
+
+    #             next_node = next_node[0] if random.choice([True, False]) else next_node[1]
+    #             print('robot', i, 'looking to move to:', next_node)
+
+    #             temp = False
+    #             for robot in self.robot:
+    #                 if next_node == robot.pos:
+    #                     print('     ... but its occupied by robot', robot.id, '!!!')
+    #                     temp = True
+    #                     break
+                    
+    #             if not temp:
+    #                 print('     ...and succeeded!')
+    #                 is_occupied = False
+
+    #         self.robot[i].pos = next_node
+    #         # print('Robot', i, 'moved to', next_node)
 
 
     def run(self, n_robots, n_iters):
@@ -132,11 +180,6 @@ class ODR:
 
         # Reset and initialize map
         self.init_map()
-
-        print('')
-
-        # visited = [self.start]
-        # try_these = [self.start]
 
         for i in range(n_iters):
             # Move each robot to nearest node/vertex (randomly choose between the two nearest)
@@ -149,7 +192,7 @@ class ODR:
             visited = False
             for node in self.all_nodes:
                 if np.array_equiv(np.sort(new_config,axis=0), np.sort(node.config,axis=0)):
-                    print('New configuration already tried!!')
+                    # print('New configuration already tried!!')
                     visited = True
                     break
             
@@ -157,14 +200,15 @@ class ODR:
             if not visited:
                 new_node = Node(new_config)
                 new_node.parent = self.all_nodes[-1]
+                # new_node.cost = 
                 self.all_nodes.append(new_node)
-            
-            # next_node = self.get_nearest_node((visited[0].row, visited[0].col))
-            # print(next_node)
+            else:
+                print('already visited')
 
-            # Check support polygon condition
-            # print(self.check_support_polygon())
-
+            if self.check_support_polygon():
+                print('Robots supporting CoM!')
+                break
+            ## IF ALL VISITED, STOP CONDITION
 
 
 if __name__ == '__main__':

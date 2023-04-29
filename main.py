@@ -28,16 +28,16 @@ def create_payload(shape, n_vertices):
 
 #___________________________________________________________
 ## Load the payload
-n_vertices = 4
+n_vertices = 8
 payload = create_payload('circle', n_vertices)
 start = payload[0]
 goal = payload[-1]
 
 ## Optimal dynamic distribution (ODR) class
-n_robots = 2 # Define number of robots (id=0 is first robot)
+n_robots = 3 # Define number of robots (id=0 is first robot)
 
 ODR_Planner = ODR(payload, start, goal)
-ODR_Planner.run(n_robots, 8)
+ODR_Planner.run(n_robots, 100)
 
 
 ## **** TEMP PLOT PAYLOAD ****
