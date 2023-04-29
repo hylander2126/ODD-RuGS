@@ -28,7 +28,7 @@ def create_payload(shape, n_vertices):
 
 #___________________________________________________________
 ## Load the payload
-n_vertices = 8
+n_vertices = 4
 payload = create_payload('circle', n_vertices)
 start = payload[0]
 goal = payload[-1]
@@ -37,7 +37,7 @@ goal = payload[-1]
 n_robots = 2 # Define number of robots (id=0 is first robot)
 
 ODR_Planner = ODR(payload, start, goal)
-ODR_Planner.run(n_robots, 10)
+ODR_Planner.run(n_robots, 8)
 
 
 ## **** TEMP PLOT PAYLOAD ****
