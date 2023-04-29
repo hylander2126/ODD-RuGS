@@ -29,8 +29,8 @@ class ODR:
     def __init__(self, payload_verts, start, goal):
         self.payload = payload_verts          # array of tuples of payload vertices
 
-        self.start = Node(start) # start node
-        self.goal = Node(goal)    # goal node
+        # self.start = Node(start) # start node
+        # self.goal = Node(goal)    # goal node
         self.all_nodes = []                    # list of nodes
         self.found = False                    # found flag
 
@@ -52,16 +52,24 @@ class ODR:
         '''
         self.found = False
         self.all_nodes = []
+
         new_config = np.array([self.robot[i].pos for i in range(self.n_robots)])
         self.all_nodes.append(Node(new_config))
         # self.all_nodes.append(self.start)
 
 
-    # def dis(self, node1, node2):
-    #     '''Calculate the euclidean distance between two nodes
-    #     '''
-    #     # return np.sqrt((node1.row-node2.row)**2 + (node1.col-node2.col)**2)
-    #     return np.sqrt((node1[0]-node2[0])**2 + (node1[1]-node2[1])**2).round(2)
+    def init_plot(self):
+        self.fig, self.ax = plt.subplots()
+        plt.xlim([-6,6])
+        plt.ylim([-6,6])
+        self.ax.set_aspect('equal', adjustable='box')
+        
+        payl = plt.Circle((0,0), 4, color='r')
+        self.ax.add_patch(payl)
+
+        self.circles = [plt.Circle(self.payload[i],0.2, color='g') for i in range(self.n_robots)]
+        for circ in self.circles:
+            self.ax.add_patch(circ)
 
 
     def get_nearest_node(self, point):
@@ -125,7 +133,7 @@ class ODR:
 
         # create a set to store the positions of all robots
         occupied_nodes = set(robot.pos for robot in self.robot)
-        print('occupied nodes:', occupied_nodes)
+        # print('occupied nodes:', occupied_nodes)
 
         # create a dictionary to store the nearest nodes for each robot
         nearest_nodes = {i: self.get_nearest_node(self.robot[i].pos) for i in range(self.n_robots)}
@@ -143,34 +151,16 @@ class ODR:
             occupied_nodes.add(next_node)
 
 
-    
+    def update_plot(self):
+        '''Update robot positions each step
+        '''
+        # new_centers = [self.robot[j].pos for j in range(self.n_robots)]
+        for i in range(self.n_robots):
+            new_center = self.robot[i].pos
+            self.circles[i].center = new_center
 
-
-    # def move_robots(self):
-    #     '''Randomly move robots to nearest attachment point    TODO: maybe add a small chance to NOT move a robot
-    #     '''
-    #     for i in range(self.n_robots):
-    #         # Find nearest attachment point, if occupied keep trying
-    #         is_occupied = True
-    #         while is_occupied:
-    #             next_node = self.get_nearest_node(self.robot[i].pos)
-
-    #             next_node = next_node[0] if random.choice([True, False]) else next_node[1]
-    #             print('robot', i, 'looking to move to:', next_node)
-
-    #             temp = False
-    #             for robot in self.robot:
-    #                 if next_node == robot.pos:
-    #                     print('     ... but its occupied by robot', robot.id, '!!!')
-    #                     temp = True
-    #                     break
-                    
-    #             if not temp:
-    #                 print('     ...and succeeded!')
-    #                 is_occupied = False
-
-    #         self.robot[i].pos = next_node
-    #         # print('Robot', i, 'moved to', next_node)
+        self.fig.canvas.draw()
+        plt.pause(0.2)
 
 
     def run(self, n_robots, n_iters):
@@ -181,14 +171,18 @@ class ODR:
         # Reset and initialize map
         self.init_map()
 
+        # Initialize plot window
+        self.init_plot()
+
+        # Loop through all iterations
         for i in range(n_iters):
-            # Move each robot to nearest node/vertex (randomly choose between the two nearest)
+            # Move each robot to nearest unoccupied vertex
             self.move_robots()
 
-            # Add a node consisting of each robot's position
+            # Record this configuration of robot positions
             new_config = np.array([self.robot[i].pos for i in range(n_robots)])
 
-            # Check if this configuration has already been tried. Loop through all nodes added until now. TODO see if a 'visited' list would be faster
+            # Check if configuration already tried, loop through all previously visited nodes. TODO see if a 'visited' list would be faster
             visited = False
             for node in self.all_nodes:
                 if np.array_equiv(np.sort(new_config,axis=0), np.sort(node.config,axis=0)):
@@ -209,6 +203,11 @@ class ODR:
                 print('Robots supporting CoM!')
                 break
             ## IF ALL VISITED, STOP CONDITION
+
+            # Update plot
+            self.update_plot()
+
+        plt.show()
 
 
 if __name__ == '__main__':
