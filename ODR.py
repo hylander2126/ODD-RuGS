@@ -26,21 +26,18 @@ class Node:
 # Class for RRT
 class ODR:
     # Constructor
-    def __init__(self, payload_verts, start, goal):
-        self.payload = payload_verts          # array of tuples of payload vertices
-
-        # self.start = Node(start) # start node
-        # self.goal = Node(goal)    # goal node
-        self.all_nodes = []                    # list of nodes
-        self.found = False                    # found flag
+    def __init__(self, payload_verts, n_robots):
+        self.payload = payload_verts    # array of tuples of payload vertices
+        self.all_nodes = []             # list of nodes
+        self.found = False              # found flag
+        self.n_robots = n_robots        # Number of robots
 
 
-    def init_robots(self, n_robots):
+    def init_robots(self):
         '''Initialize the robots before each search
         '''
-        self.n_robots = n_robots
         self.robot = []
-        for i in range(n_robots):
+        for i in range(self.n_robots):
             self.robot.append(Robot(i))
             self.robot[i].pos = self.payload[i]
             print('Robot', i, 'initialized to position:', self.payload[i])
@@ -52,13 +49,14 @@ class ODR:
         '''
         self.found = False
         self.all_nodes = []
-
-        new_config = np.array([self.robot[i].pos for i in range(self.n_robots)])
-        self.all_nodes.append(Node(new_config))
-        # self.all_nodes.append(self.start)
+        # Generate initial configuration of robots around the payload and create the first Node 
+        init_config = np.array([self.robot[i].pos for i in range(self.n_robots)])
+        self.all_nodes.append(Node(init_config))
 
 
     def init_plot(self):
+        '''Initialize the plot for live-plotting later
+        '''
         self.fig, self.ax = plt.subplots()
         plt.xlim([-6,6])
         plt.ylim([-6,6])
@@ -94,9 +92,9 @@ class ODR:
         return nearest_neighbors
 
 
-    def get_cost(self):
-        '''Determine the cost of the current configuration based on load distribution
-        '''
+    # def get_cost(self):
+    #     '''Determine the cost of the current configuration based on load distribution
+    #     '''
 
 
     def check_support_polygon(self, tol=1e-12):
@@ -107,22 +105,12 @@ class ODR:
         # Array of coordinates of robot support points
         polygon = np.array([self.robot[i].pos for i in range(self.n_robots)])
 
-        # Simple line check for two robots
+        # Simple distance check between robot midpoint and CoM
         if self.n_robots < 3:
-
-            v1 = polygon[1] - polygon[0]
-            v2 = point - polygon[0]
-
-            d = np.dot(v1, v2)
-            v1_squared = np.dot(v1, v1)
-
-            if d < 0 or d > v1_squared:
-                print('CoM not supported by the robots!')
-                return False
-            else:
-                dist = np.linalg.norm(np.cross(v1, v2)) / np.sqrt(v1_squared)
-                return dist < tol
-
+            midpoint = np.add(self.robot[0].pos, self.robot[1].pos)/2
+            diff = np.linalg.norm(midpoint)
+            return diff < 1e-3
+        # Use Scipy convex hull to check CoM in hull
         else:
             hull = ConvexHull(polygon)
             return all(((np.dot(eq[:-1], point) + eq[-1]) <= tol) for eq in hull.equations)
@@ -131,19 +119,35 @@ class ODR:
 
     def move_robots(self):
 
-        # create a set to store the positions of all robots
+        # Create a set to store the positions of all robots
         occupied_nodes = set(robot.pos for robot in self.robot)
         # print('occupied nodes:', occupied_nodes)
 
-        # create a dictionary to store the nearest nodes for each robot
+        # Create a dictionary to store the nearest nodes for each robot
         nearest_nodes = {i: self.get_nearest_node(self.robot[i].pos) for i in range(self.n_robots)}
+        # print(nearest_nodes)
 
+        # Move each robot
         for i in range(self.n_robots):
+            # Add a small chance to stay in this position
+            if np.random.random() < 0.2:
+                continue
+
+            # Get this robot's candidate nodes
             candidate_nodes = nearest_nodes[i]
-            # Select only the unoccupied node
-            next_node = [node for node in candidate_nodes if node not in occupied_nodes].pop()
+            # print('candidate nodes for', i, ':', candidate_nodes)
+            # New list of only unoccupied nodes
+            empty_nodes = [node for node in candidate_nodes if node not in occupied_nodes]
+
+            # If all possibilities occupied, don't move
+            if not empty_nodes:
+                continue
+            
+            # If multiple choices exists, choose randomly
+            next_node = random.choice(empty_nodes)
             # Record previous node for removal after updating robot
             previous_node = self.robot[i].pos
+
             # Move this robot to the new node
             self.robot[i].pos = next_node
             # Update list of occupied nodes
@@ -160,13 +164,13 @@ class ODR:
             self.circles[i].center = new_center
 
         self.fig.canvas.draw()
-        plt.pause(0.2)
+        plt.pause(0.001)
 
 
-    def run(self, n_robots, n_iters):
+    def run(self, n_iters=500):
 
         # Initialize robots
-        self.init_robots(n_robots)
+        self.init_robots()
 
         # Reset and initialize map
         self.init_map()
@@ -174,13 +178,23 @@ class ODR:
         # Initialize plot window
         self.init_plot()
 
+
+        # self.robot[0].pos = (4.0,0.0)
+        # self.robot[1].pos = (0.0,-4.0)
+        # self.check_support_polygon()
+
+        final_iters = 0
         # Loop through all iterations
         for i in range(n_iters):
             # Move each robot to nearest unoccupied vertex
             self.move_robots()
+            # Update plot
+            self.update_plot()
+            # Increment counter
+            final_iters += 1
 
             # Record this configuration of robot positions
-            new_config = np.array([self.robot[i].pos for i in range(n_robots)])
+            new_config = np.array([self.robot[i].pos for i in range(self.n_robots)])
 
             # Check if configuration already tried, loop through all previously visited nodes. TODO see if a 'visited' list would be faster
             visited = False
@@ -189,23 +203,22 @@ class ODR:
                     # print('New configuration already tried!!')
                     visited = True
                     break
-            
+
             # If this configuration hasn't been tried, add a new node
             if not visited:
                 new_node = Node(new_config)
                 new_node.parent = self.all_nodes[-1]
                 # new_node.cost = 
                 self.all_nodes.append(new_node)
-            else:
-                print('already visited')
+            # else:
+                # print('already visited')
 
             if self.check_support_polygon():
-                print('Robots supporting CoM!')
+                print('All robots supporting CoM! Found in', final_iters, 'step(s).')
+                print('Final robot positions:', [self.robot[i].pos for i in range(self.n_robots)])
                 break
             ## IF ALL VISITED, STOP CONDITION
 
-            # Update plot
-            self.update_plot()
 
         plt.show()
 

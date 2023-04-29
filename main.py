@@ -7,11 +7,11 @@ import matplotlib.pyplot as plt
 
 
 def create_payload(shape, n_vertices):
-	''' Generate a list of tuples corresponding to vertices 
-	of the payload (x,y)'''
+	''' Generate a list of tuples corresponding to vertices of the payload (x,y)
+	'''
 	if shape=='circle':
-		r = 4			# Radius
-		n = n_vertices	# Num of desired vertices
+		r = 4				# Radius
+		n = n_vertices		# Num of desired vertices
 		x = []
 		y = []
 		vertices = []
@@ -21,27 +21,21 @@ def create_payload(shape, n_vertices):
 			x = round(r*math.cos(2*math.pi*i / n), 3)
 			y = round(r*math.sin(2*math.pi*i / n), 3)
 			vertices.append((x,y))
-		# vertices = np.array([x,y])
 
 	return vertices
 
 
+
 #___________________________________________________________
+## Define simulation parameters
+n_vertices = 36		# Number of payload 'grab points' or vertices
+n_robots = 5 		# Number of robots (id=0 is first robot)
+shape = 'circle'	# Shape to test. (only 'circle' for now)
+
+
 ## Load the payload
-n_vertices = 36
-payload = create_payload('circle', n_vertices)
-start = payload[0]
-goal = payload[-1]
+payload = create_payload(shape, n_vertices)
 
 ## Optimal dynamic distribution (ODR) class
-n_robots = 3 # Define number of robots (id=0 is first robot)
-
-ODR_Planner = ODR(payload, start, goal)
-ODR_Planner.run(n_robots, 100)
-
-
-## Search with RRT and RRT*
-# RRT_planner.RRT(n_pts=1000)
-# RRT_planner.RRT_star(n_pts=2000)
-# RRT_planner.informed_RRT_star(n_pts=2000)
-
+ODR_Planner = ODR(payload, n_robots)
+ODR_Planner.run(n_iters=1000)
