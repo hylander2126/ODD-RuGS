@@ -101,23 +101,30 @@ class ODR:
         '''Determines if CoM lies within support polygon of agents
         '''
         # Point to check (CoM of circle for now) TODO update with actual CoM or centroid of arbirtrary object
-        point = np.array([0,0])
+        # point = np.array([0,0])
+
         # Array of coordinates of robot support points
         polygon = np.array([self.robot[i].pos for i in range(self.n_robots)])
 
+        # Get centroid of support polygon
+        cx = np.round(np.mean([pair[0] for pair in polygon]), 3)
+        cy = np.round(np.mean([pair[1] for pair in polygon]), 3)
+        polygon_cent = (cx, cy)
+
+        # Get distance of polygon centroid to origin
+        diff = np.linalg.norm(polygon_cent)
+
         # Simple distance check between robot midpoint and CoM
         if self.n_robots < 3:
-            midpoint = np.add(self.robot[0].pos, self.robot[1].pos)/2
-            diff = np.linalg.norm(midpoint)
-            return diff < 1e-3
+            return (diff < 1e-3, diff)
         # Use Scipy convex hull to check CoM in hull
         else:
             # If robots all on the same side, cannot create convex hull. In this case, return False
             try:
-                hull = ConvexHull(polygon)
-                return all(((np.dot(eq[:-1], point) + eq[-1]) <= tol) for eq in hull.equations)
+                hull = ConvexHull(polygon)                
+                return (all(((np.dot(eq[:-1], point) + eq[-1]) <= tol) for eq in hull.equations), diff)
             except:
-                return False
+                return (False, diff)
 
 
     def move_robots(self):
@@ -172,15 +179,14 @@ class ODR:
         plt.pause(0.01)
 
 
-    def get_cost(self, is_supporting):
+    def get_cost(self, is_supporting, diff):
         '''Determine the cost of the current configuration based on load distribution
         '''
         # If the load is not supported, it is an invalid configuration
         if not is_supporting:
-            return math.inf
+            return diff
         # Otherwise, calculate the goodness of this config based on load distribution
         else:
-            
             return 0
 
 
@@ -195,18 +201,20 @@ class ODR:
 
         final_iters = 0
         is_supporting = False
+        # visited = set()
 
         # Loop through all iterations
         for i in range(n_iters):
             # Move each robot to nearest unoccupied vertex
             self.move_robots()
-            # Update plot
-            self.update_plot()
             # Increment counter
             final_iters += 1
 
             # Record this configuration of robot positions
             new_config = np.array([self.robot[i].pos for i in range(self.n_robots)])
+
+            # if new_config not in 
+            # visited.add(new_config)
 
             # Check if configuration already tried, loop through all previously visited nodes. TODO see if a 'visited' list would be faster
             visited = False
@@ -220,11 +228,12 @@ class ODR:
             if not visited:
                 new_node = Node(new_config)
                 new_node.parent = self.all_nodes[-1]
-                is_supporting = self.check_support_polygon()
-                new_node.cost = self.get_cost(is_supporting)
+                is_supporting, diff = self.check_support_polygon()
+                new_node.cost = self.get_cost(is_supporting, diff)
                 self.all_nodes.append(new_node)
-            # else:
-                # print('already visited')
+
+            # Update plot
+            self.update_plot()
 
             # FOR NOW, if valid configuratoin, STOP. TODO: Add IF ALL VISITED STOP CONDITION
             if is_supporting:
