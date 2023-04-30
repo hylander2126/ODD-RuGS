@@ -26,8 +26,9 @@ class Node:
 # Class for RRT
 class ODR:
     # Constructor
-    def __init__(self, payload_verts, n_robots):
+    def __init__(self, payload_verts, payload_shape, n_robots):
         self.payload = payload_verts    # array of tuples of payload vertices
+        self.shape = payload_shape      # string describing shape of payload
         self.all_nodes = []             # list of nodes
         self.found = False              # found flag
         self.n_robots = n_robots        # Number of robots
@@ -62,8 +63,12 @@ class ODR:
         plt.ylim([-6,6])
         self.ax.set_aspect('equal', adjustable='box')
         
-        payl = plt.Circle((0,0), 4, color='r')
-        self.ax.add_patch(payl)
+        if self.shape == 'circle':
+            payl = plt.Circle((0,0), 4, color='r')
+            self.ax.add_patch(payl)
+        elif self.shape == 'square':
+            payl = plt.Rectangle((-2,-2), 4, 4)
+            self.ax.add_patch(payl)
 
         self.circles = [plt.Circle(self.payload[i],0.2, color='g') for i in range(self.n_robots)]
         for circ in self.circles:
@@ -107,8 +112,12 @@ class ODR:
             return diff < 1e-3
         # Use Scipy convex hull to check CoM in hull
         else:
-            hull = ConvexHull(polygon)
-            return all(((np.dot(eq[:-1], point) + eq[-1]) <= tol) for eq in hull.equations)
+            # If robots all on the same side, cannot create convex hull. In this case, return False
+            try:
+                hull = ConvexHull(polygon)
+                return all(((np.dot(eq[:-1], point) + eq[-1]) <= tol) for eq in hull.equations)
+            except:
+                return False
 
 
     def move_robots(self):
@@ -160,7 +169,7 @@ class ODR:
 
         self.fig.canvas.draw()
         # plt.pause(0.001)
-        plt.pause(3)
+        plt.pause(0.01)
 
 
     def get_cost(self, is_supporting):
