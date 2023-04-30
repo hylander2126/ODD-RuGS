@@ -92,11 +92,6 @@ class ODR:
         return nearest_neighbors
 
 
-    # def get_cost(self):
-    #     '''Determine the cost of the current configuration based on load distribution
-    #     '''
-
-
     def check_support_polygon(self, tol=1e-12):
         '''Determines if CoM lies within support polygon of agents
         '''
@@ -116,9 +111,10 @@ class ODR:
             return all(((np.dot(eq[:-1], point) + eq[-1]) <= tol) for eq in hull.equations)
 
 
-
     def move_robots(self):
-
+        '''Move each robot to another grab point. Add a small chance for robot to not move.
+        If multiple choices, choose randomly. Robot only moves if the space is unoccupied.
+        '''
         # Create a set to store the positions of all robots
         occupied_nodes = set(robot.pos for robot in self.robot)
         # print('occupied nodes:', occupied_nodes)
@@ -158,32 +154,39 @@ class ODR:
     def update_plot(self):
         '''Update robot positions each step
         '''
-        # new_centers = [self.robot[j].pos for j in range(self.n_robots)]
         for i in range(self.n_robots):
             new_center = self.robot[i].pos
             self.circles[i].center = new_center
 
         self.fig.canvas.draw()
-        plt.pause(0.001)
+        # plt.pause(0.001)
+        plt.pause(3)
+
+
+    def get_cost(self, is_supporting):
+        '''Determine the cost of the current configuration based on load distribution
+        '''
+        # If the load is not supported, it is an invalid configuration
+        if not is_supporting:
+            return math.inf
+        # Otherwise, calculate the goodness of this config based on load distribution
+        else:
+            
+            return 0
 
 
     def run(self, n_iters=500):
 
         # Initialize robots
         self.init_robots()
-
         # Reset and initialize map
         self.init_map()
-
         # Initialize plot window
         self.init_plot()
 
-
-        # self.robot[0].pos = (4.0,0.0)
-        # self.robot[1].pos = (0.0,-4.0)
-        # self.check_support_polygon()
-
         final_iters = 0
+        is_supporting = False
+
         # Loop through all iterations
         for i in range(n_iters):
             # Move each robot to nearest unoccupied vertex
@@ -208,17 +211,17 @@ class ODR:
             if not visited:
                 new_node = Node(new_config)
                 new_node.parent = self.all_nodes[-1]
-                # new_node.cost = 
+                is_supporting = self.check_support_polygon()
+                new_node.cost = self.get_cost(is_supporting)
                 self.all_nodes.append(new_node)
             # else:
                 # print('already visited')
 
-            if self.check_support_polygon():
+            # FOR NOW, if valid configuratoin, STOP. TODO: Add IF ALL VISITED STOP CONDITION
+            if is_supporting:
                 print('All robots supporting CoM! Found in', final_iters, 'step(s).')
                 print('Final robot positions:', [self.robot[i].pos for i in range(self.n_robots)])
                 break
-            ## IF ALL VISITED, STOP CONDITION
-
 
         plt.show()
 
