@@ -55,8 +55,8 @@ def create_payload(shape, n_vertices):
 
 #___________________________________________________________
 ## Define simulation parameters
-n_vertices = 36		# Number of payload 'grab points' or vertices
-n_robots = 2 		# Number of robots (id=0 is first robot)
+n_vertices = 128		# Number of payload 'grab points' or vertices
+n_robots = 3 		# Number of robots (id=0 is first robot)
 shape = 'square'	# Shape to test. (only 'circle' for now)
 
 ## Load the payload
@@ -65,4 +65,4 @@ payload = create_payload(shape, n_vertices)
 
 ## Optimal dynamic distribution (ODR) class
 ODR_Planner = ODR(payload, shape, n_robots)
-ODR_Planner.run(n_iters=100)
+ODR_Planner.run(n_iters=1000)
