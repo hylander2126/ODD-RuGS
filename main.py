@@ -1,13 +1,9 @@
 
 import math
-import numpy as np
 from ODR import ODR
-from ODR import Robot
-import matplotlib.pyplot as plt
-
 
 def get_points_on_line(p1, p2, n):
-	'''For square shape generation. Return n points on line
+	'''For square shape generation. Return n points on the line
 	'''
 	x1, y1 = p1
 	x2, y2 = p2
@@ -23,24 +19,21 @@ def create_payload(shape, n_vertices):
 	'''
 	vertices = []
 	n = n_vertices			# Num of desired vertices
+	r = 4					# Body Radius
 
-	if shape=='circle':
-		r = 4				# Radius
+	if shape == 'circle':
 		for i in range(n):
 			x = round(r*math.cos(2*math.pi*i / n), 3)
 			y = round(r*math.sin(2*math.pi*i / n), 3)
 			vertices.append((x,y))
 
-	if shape=='square':
-		r2 = 4			# Body Radius	
-		r = r2/2
+	if shape == 'square':
+		p1 = (r, -r)
+		p2 = (r, r)
+		p3 = (-r, r)
+		p4 = (-r, -r)
 
-		p1 = (r,-r)
-		p2 = (r,r)
-		p3 = (-r,r)
-		p4 = (-r,-r)
-
-		n = int(n/4)	# Divide by 4 so n/4 points for each line is generated
+		n = int(n/4)  # Divide by 4 so n/4 points for each line is generated
 
 		points = get_points_on_line(p1, p2, n)
 		points.extend(get_points_on_line(p2, p3, n))
@@ -56,13 +49,13 @@ def create_payload(shape, n_vertices):
 #___________________________________________________________
 ## Define simulation parameters
 n_vertices = 128		# Number of payload 'grab points' or vertices
-n_robots = 3 		# Number of robots (id=0 is first robot)
-shape = 'square'	# Shape to test. (only 'circle' for now)
+n_robots = 10 			# Number of robots (id=0 is first robot)
+shape = 'circle'		# Shape to test. (only 'circle' for now)
 
-## Load the payload
+## Load the payload object
 payload = create_payload(shape, n_vertices)
-
 
 ## Optimal dynamic distribution (ODR) class
 ODR_Planner = ODR(payload, shape, n_robots)
 ODR_Planner.run(n_iters=1000)
+

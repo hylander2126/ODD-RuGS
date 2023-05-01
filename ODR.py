@@ -16,24 +16,23 @@ class Robot:
 class Node:
     # def __init__(self, row, col):
     def __init__(self, configuration):
-        self.config = configuration # List of (x,y) coords of robot distribution
+        self.config = configuration  # List of (x,y) coords of robot distribution
         # self.row = row            # coordinate
         # self.col = col            # coordinate
-        self.parent = None          # parent node / edge
-        self.cost = 0.0             # cost to parent / edge weight
+        self.parent = None  # parent node / edge
+        self.cost = 0.0  # cost to parent / edge weight
 
 
 # Class for RRT
 class ODR:
     # Constructor
     def __init__(self, payload_verts, payload_shape, n_robots):
-        self.payload = payload_verts    # array of tuples of payload vertices
-        self.shape = payload_shape      # string describing shape of payload
-        self.all_nodes = []             # list of nodes
-        self.found = False              # found flag
-        self.n_robots = n_robots        # Number of robots
-        self.best_cost = math.inf       # Best Cost
-
+        self.payload = payload_verts  # array of tuples of payload vertices
+        self.shape = payload_shape  # string describing shape of payload
+        self.all_nodes = []  # list of nodes
+        self.found = False  # found flag
+        self.n_robots = n_robots  # Number of robots
+        self.best_cost = math.inf  # Best Cost
 
     def init_robots(self):
         '''Initialize the robots before each search
@@ -45,9 +44,8 @@ class ODR:
             print('Robot', i, 'initialized to position:', self.payload[i])
         print('')
 
-
     def init_map(self):
-        '''Intialize the map before each search
+        '''Initialize the map before each search
         '''
         # Generate initial configuration of robots around the payload
         init_config = np.array([self.robot[i].pos for i in range(self.n_robots)])
@@ -56,29 +54,27 @@ class ODR:
         # Create a new node and append to all nodes list
         init_node = Node(init_config)
         init_node.cost = cost
-        
-        self.all_nodes.append(init_node)
 
+        self.all_nodes.append(init_node)
 
     def init_plot(self):
         '''Initialize the plot for live-plotting later
         '''
         self.fig, self.ax = plt.subplots()
-        plt.xlim([-6,6])
-        plt.ylim([-6,6])
+        plt.xlim([-6, 6])
+        plt.ylim([-6, 6])
         self.ax.set_aspect('equal', adjustable='box')
-        
+
         if self.shape == 'circle':
-            payl = plt.Circle((0,0), 4, color='r')
+            payl = plt.Circle((0, 0), 4, color='r')
             self.ax.add_patch(payl)
         elif self.shape == 'square':
-            payl = plt.Rectangle((-2,-2), 4, 4)
+            payl = plt.Rectangle((-4, -4), 8, 8)
             self.ax.add_patch(payl)
 
-        self.circles = [plt.Circle(self.payload[i],0.2, color='g') for i in range(self.n_robots)]
+        self.circles = [plt.Circle(self.payload[i], 0.2, color='g') for i in range(self.n_robots)]
         for circ in self.circles:
             self.ax.add_patch(circ)
-
 
     def get_nearest_node(self, point):
         '''Find the nearest node from the new point
@@ -89,10 +85,9 @@ class ODR:
         samples.remove(point)
 
         kdtree = cKDTree(samples)
-        coord, index = kdtree.query(point, k=2) # k=2 means two nearest neighbors
+        coord, index = kdtree.query(point, k=2)  # k=2 means two nearest neighbors
 
         return [samples[i] for i in index]
-
 
     def check_support_polygon(self, tol=1e-12):
         '''Determines if CoM lies within support polygon of agents
@@ -103,29 +98,27 @@ class ODR:
         # Get centroid of support polygon
         cx = np.round(np.mean([pair[0] for pair in polygon]), 3)
         cy = np.round(np.mean([pair[1] for pair in polygon]), 3)
-       
+
         # Get distance of polygon centroid to origin
-        diff = np.linalg.norm((cx,cy))
+        diff = np.linalg.norm((cx, cy))
 
-
-        ## For two robots, simple line midpoint check
+        # For two robots, simple line midpoint check
         if self.n_robots < 3:
             return (diff < 1e-3, diff)
-        ## For n robots, scipy.convexhull to check if CoM in hull
+        # For n robots, scipy.convexhull to check if CoM in hull
         else:
             try:
-                hull = ConvexHull(polygon) 
-                
-                #Get polygon centroid
-                cx = np.mean(hull.points[hull.vertices,0])
-                cy = np.mean(hull.points[hull.vertices,1])
-                diff = np.linalg.norm((cx,cy))    
-                return (all(((np.dot(eq[:-1], point) + eq[-1]) <= tol) for eq in hull.equations), diff)
+                hull = ConvexHull(polygon)
+
+                # Get polygon centroid
+                cx = np.mean(hull.points[hull.vertices, 0])
+                cy = np.mean(hull.points[hull.vertices, 1])
+                diff = np.linalg.norm((cx, cy))
+                return all(((np.dot(eq[:-1], (0, 0)) + eq[-1]) <= tol) for eq in hull.equations), diff
 
             # IF scipy fails to make a convex hull, it means an invalid configuration
             except:
-                return (False, diff)
-
+                return False, diff
 
     def move_robots(self):
         '''Move each robot to another grab point. Add a small chance for robot to not move. If multiple choices, choose randomly. 
@@ -160,22 +153,20 @@ class ODR:
             occupied_nodes.remove(previous_node)
             occupied_nodes.add(next_node)
 
-
     def extend(self):
         lowest_cost = math.inf
         best_node = []
         for node in self.all_nodes:
-                if node.cost < lowest_cost:
-                    lowest_cost = min(lowest_cost, node.cost)
-                    best_node = node
+            if node.cost < lowest_cost:
+                lowest_cost = min(lowest_cost, node.cost)
+                best_node = node
 
         for i in range(self.n_robots):
-                self.robot[i].pos = best_node.config[i]
+            self.robot[i].pos = best_node.config[i]
 
         if lowest_cost < 0.1:
             self.found = True
             self.best_cost = lowest_cost
-
 
     def update_plot(self):
         '''Update robot positions each step
@@ -185,11 +176,10 @@ class ODR:
             self.circles[i].center = new_center
 
         self.fig.canvas.draw()
-        plt.pause(0.001)
-        # plt.pause(0.5)
+        plt.pause(0.01)
+        # plt.pause(5)
 
-
-    def run(self, n_iters=500):
+    def run(self, n_iters=1000):
 
         # Initialize robots
         self.init_robots()
@@ -198,9 +188,11 @@ class ODR:
         # Initialize plot window
         self.init_plot()
 
+        # plt.pause(10)
+
         final_iters = 0
         # Calculate number of tries to perform from each node to each subsequent node since we are doing a random walk
-        n_tries = (self.n_robots**3) + self.n_robots**2
+        n_tries = (self.n_robots ** 3) + self.n_robots ** 2
 
         # Loop through all iterations
         for i in range(n_iters):
@@ -208,12 +200,10 @@ class ODR:
             # Increment counter
             final_iters += 1
             list_of_visited = set()
-            # lowest_cost = math.inf
-            # best_node = []
 
             # print('\nMaking list of nodes ...')
 
-            for kk in range(n_tries):
+            for _ in range(n_tries):
                 # Move each robot to nearest unoccupied vertex
                 self.move_robots()
 
@@ -231,35 +221,22 @@ class ODR:
                     new_node.cost = cost
                     self.all_nodes.append(new_node)
 
-
-            # Now we have several new nodes from the current configuration. Let's choose the best node, i.e. lowest node cost
+            # Now we have several new nodes from the current configuration. Let's choose the best node,
+            # i.e. lowest node cost
             self.extend()
-            # print('Now finding the best node')
-            # for node in self.all_nodes:
-            #     if node.cost < lowest_cost:
-            #         lowest_cost = min(lowest_cost, node.cost)
-            #         best_node = node
-
             # Now we can erase all data from all nodes list
             # self.all_nodes = [self.all_nodes[0]]
 
-            ## Technically, we should be able to compare this best cost with the last best cost and if its the same, then we have optimized
-            ## HOWEVER, the random walk criteria makes it a non-guarantee that we have explored all nodes.
-
-            # print('The best node is', best_node.config, 'with a cost of:', lowest_cost)
-            # Now actually move all robots to the best configuration from the list
-            # for i in range(self.n_robots):
-            #     self.robot[i].pos = best_node.config[i]
+            # Technically, we should be able to compare this best cost with the last best cost and if it's the same,
+            # then we have optimized, HOWEVER, random walk makes it a non-guarantee that we have explored all nodes.
 
             # Update plot
             self.update_plot()
 
-
-
             if self.found:
                 print('\nAll robots supporting CoM! Found in', final_iters, 'step(s).')
                 # print('Final robot positions:\n', np.round([self.robot[i].pos for i in range(self.n_robots)], 3))
-                print('Final cost (polygon centroid dist to CoM):', round(self.best_cost,4))
+                print('Final cost (polygon centroid dist to CoM):', round(self.best_cost, 4))
                 break
 
         plt.show()
@@ -267,5 +244,5 @@ class ODR:
 
 if __name__ == '__main__':
     import subprocess
-    subprocess.run(['python', 'main.py'])
 
+    subprocess.run(['python', 'main.py'])
