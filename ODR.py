@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 class Robot:
     def __init__(self, rid):
         self.id = rid
-        self.pos = []
+        self.pos = ()
 
 
 # Class for each tree node
@@ -27,12 +27,13 @@ class Node:
 class ODR:
     # Constructor
     def __init__(self, payload_verts, payload_shape, n_robots):
-        self.payload = payload_verts  # array of tuples of payload vertices
-        self.shape = payload_shape  # string describing shape of payload
-        self.all_nodes = []  # list of nodes
-        self.found = False  # found flag
-        self.n_robots = n_robots  # Number of robots
-        self.best_cost = math.inf  # Best Cost
+        self.payload = payload_verts            # array of tuples of payload vertices
+        self.kdtree = cKDTree(self.payload)     # kdtree for nearest neighbors search
+        self.shape = payload_shape              # string describing shape of payload
+        self.all_nodes = []                     # list of nodes
+        self.found = False                      # found flag
+        self.n_robots = n_robots                # Number of robots
+        self.best_cost = math.inf               # Best Cost
 
     def init_robots(self):
         '''Initialize the robots before each search
@@ -40,7 +41,7 @@ class ODR:
         self.robot = []
         for i in range(self.n_robots):
             self.robot.append(Robot(i))
-            self.robot[i].pos = self.payload[i]
+            self.robot[i].pos = tuple(self.payload[i])
             print('Robot', i, 'initialized to position:', self.payload[i])
         print('')
 
@@ -76,18 +77,11 @@ class ODR:
         for circ in self.circles:
             self.ax.add_patch(circ)
 
-    def get_nearest_node(self, point):
-        '''Find the nearest node from the new point
+    def get_nearest_node(self, query_point):
+        '''Find the nearest node from the new point for each robot. Use kdtree to find k-nearest neighbors
         '''
-        # Use kdtree to find k-nearest neighbors ***.COPY() SO WE DONT REMOVE FROM ORIGINAL LIST
-        samples = self.payload.copy()
-        # Remove this point from the list of samples
-        samples.remove(point)
-
-        kdtree = cKDTree(samples)
-        coord, index = kdtree.query(point, k=2)  # k=2 means two nearest neighbors
-
-        return [samples[i] for i in index]
+        dist, idx = self.kdtree.query(query_point, k=3)  # k=3 nearest neighbors (including query_point !!!!)
+        return [self.payload[i] for num, i in enumerate(idx) if dist[num] != 0]
 
     def check_support_polygon(self, tol=1e-12):
         '''Determines if CoM lies within support polygon of agents
@@ -104,7 +98,7 @@ class ODR:
 
         # For two robots, simple line midpoint check
         if self.n_robots < 3:
-            return (diff < 1e-3, diff)
+            return diff < 1e-3, diff
         # For n robots, scipy.convexhull to check if CoM in hull
         else:
             try:
@@ -128,12 +122,13 @@ class ODR:
         occupied_nodes = set(robot.pos for robot in self.robot)
 
         # Create a dictionary to store the nearest nodes for each robot
-        candidate_nodes = {i: self.get_nearest_node(self.robot[i].pos) for i in range(self.n_robots)}
+        # candidate_nodes = {i: self.get_nearest_node(self.robot[i].pos) for i in range(self.n_robots)}
+        candidate_nodes = {robot.id: self.get_nearest_node(tuple(robot.pos)) for robot in self.robot}
 
         # Move each robot
         for i in range(self.n_robots):
             # Add a small chance to stay in this position
-            if np.random.random() < 0.2:
+            if np.random.random() < 0.35:
                 continue
 
             # New list of only unoccupied nodes
@@ -148,25 +143,24 @@ class ODR:
             previous_node = self.robot[i].pos
 
             # Move this robot to the new node
-            self.robot[i].pos = next_node
+            self.robot[i].pos = tuple(next_node)
             # Update list of occupied nodes
             occupied_nodes.remove(previous_node)
             occupied_nodes.add(next_node)
 
     def extend(self):
-        lowest_cost = math.inf
-        best_node = []
+        '''From list of all nodes, choose the next configuration with the lowest cost.
+        '''
         for node in self.all_nodes:
-            if node.cost < lowest_cost:
-                lowest_cost = min(lowest_cost, node.cost)
-                best_node = node
+            # if node.cost <= self.best_cost:
+            self.best_cost = min(self.best_cost, node.cost)
+            self.best_node = node
 
         for i in range(self.n_robots):
-            self.robot[i].pos = best_node.config[i]
+            self.robot[i].pos = tuple(self.best_node.config[i])
 
-        if lowest_cost < 0.1:
+        if self.best_cost < 0.01:
             self.found = True
-            self.best_cost = lowest_cost
 
     def update_plot(self):
         '''Update robot positions each step
@@ -190,54 +184,70 @@ class ODR:
 
         # plt.pause(10)
 
-        final_iters = 0
+        final_iters = n_iters
         # Calculate number of tries to perform from each node to each subsequent node since we are doing a random walk
-        n_tries = (self.n_robots ** 3) + self.n_robots ** 2
+        n_tries = (3 ** self.n_robots) + (self.n_robots ** 2)
+
+        # List of 'errors' over time between centroid and Com
+        # Moment at which polygon is supporting the CoM
+        already_supported = False
+        support_time = 0
+        support_cost = 0
+
+        visited_configs = set()
 
         # Loop through all iterations
         for i in range(n_iters):
 
-            # Increment counter
-            final_iters += 1
-            list_of_visited = set()
+            new_config = tuple(robot.pos for robot in self.robot)
 
-            # print('\nMaking list of nodes ...')
-
-            for _ in range(n_tries):
-                # Move each robot to nearest unoccupied vertex
+            while new_config in visited_configs:
                 self.move_robots()
+                new_config = tuple(robot.pos for robot in self.robot)
 
-                # Record this configuration of robot positions
-                new_config = tuple([self.robot[i].pos for i in range(self.n_robots)])
+            visited_configs.add(new_config)
 
-                # If this configuration has been visited, skip it
-                if new_config in list_of_visited:
-                    continue
-                else:
-                    list_of_visited.add(new_config)
-                    is_supporting, cost = self.check_support_polygon()
-                    new_node = Node(new_config)
-                    new_node.parent = self.all_nodes[-1]
-                    new_node.cost = cost
-                    self.all_nodes.append(new_node)
+            is_supporting, cost = self.check_support_polygon()
+            new_node = Node(new_config)
+            new_node.parent = self.all_nodes[-1]
+            new_node.cost = cost
+            self.all_nodes.append(new_node)
 
-            # Now we have several new nodes from the current configuration. Let's choose the best node,
-            # i.e. lowest node cost
+            if is_supporting and not already_supported:
+                support_time = i
+                support_cost = cost
+                already_supported = True
+
+            # Now we have several new nodes from the current configuration. Choose best, lowest cost node
             self.extend()
-            # Now we can erase all data from all nodes list
-            # self.all_nodes = [self.all_nodes[0]]
+            # Update plot
+            self.update_plot()
 
             # Technically, we should be able to compare this best cost with the last best cost and if it's the same,
             # then we have optimized, HOWEVER, random walk makes it a non-guarantee that we have explored all nodes.
 
-            # Update plot
-            self.update_plot()
-
             if self.found:
-                print('\nAll robots supporting CoM! Found in', final_iters, 'step(s).')
-                # print('Final robot positions:\n', np.round([self.robot[i].pos for i in range(self.n_robots)], 3))
-                print('Final cost (polygon centroid dist to CoM):', round(self.best_cost, 4))
+                final_iters = i
                 break
+
+        ## Final Plots and Values
+        print('\nThis optimal configuration found in', final_iters, 'step(s).')
+        print('Final cost (polygon centroid dist to CoM):', round(self.best_cost, 4))
+
+        # Want to plot cost of visited nodes over time and the cost at the moment where the payload is supported
+        # t_span = [i for i in range(final_iters+1)]
+        list_of_costs = [node.cost for node in self.all_nodes]
+        t_span = [i for i in range(np.size(self.all_nodes))]
+        best_cost = np.array(np.size(self.all_nodes))
+        best_cost.fill(self.best_cost)
+
+        fig, axs = plt.subplots()
+        axs.set_title('Distance between polygon centroid and CoM over time')
+        axs.set_xlabel('Time Steps')
+        axs.set_ylabel('Configuration Cost (error)')
+        axs.plot(t_span, list_of_costs, zorder=-1)
+        # axs.plot(t_span, )
+        axs.scatter(support_time, support_cost, c='r', marker='*', s=300, zorder=1)
 
         plt.show()
 
