@@ -1,5 +1,8 @@
 
 import math
+
+import matplotlib.pyplot as plt
+
 from ODR import ODR
 import numpy as np
 
@@ -16,20 +19,20 @@ def get_points_on_line(p1, p2, n):
 	return points
 
 
-def create_payload(shape, n_vertices):
+def create_payload(payload_shape, num_verts):
 	''' Generate a list of tuples corresponding to vertices of the payload (x,y)
 	'''
 	vertices = []
-	n = n_vertices			# Num of desired vertices
+	n = num_verts			# Num of desired vertices
 	r = 4					# Body Radius
 
-	if shape == 'circle':
+	if payload_shape == 'Circle':
 		for i in range(n):
 			x = round(r*math.cos(2*math.pi*i / n), 3)
 			y = round(r*math.sin(2*math.pi*i / n), 3)
 			vertices.append((x,y))
 
-	if shape == 'square':
+	if payload_shape == 'Box':
 		p1 = (r, -r)
 		p2 = (r, r)
 		p3 = (-r, r)
@@ -45,28 +48,7 @@ def create_payload(shape, n_vertices):
 		points = list(dict.fromkeys(points))
 		vertices = points
 
-	if shape == 'crescent':
-		# define the outer and inner radii of the crescent
-		outer_radius = r + 2
-		inner_radius = r - 2
-
-		# generate angles evenly spaced around a circle
-		angles = np.linspace(0, 2 * np.pi, n)
-
-		# calculate the x,y coordinates of the outer and inner circles
-		outer_x = outer_radius * np.cos(angles)
-		outer_y = outer_radius * np.sin(angles)
-		inner_x = inner_radius * np.cos(angles)
-		inner_y = inner_radius * np.sin(angles)
-
-		# create a list of vertices for the crescent
-		vertices = []
-		for i in range(n):
-			if i < n / 2:
-				vertices.append((outer_x[i], outer_y[i]))
-			else:
-				vertices.append((inner_x[i], inner_y[i]))
-
+	# if shape == 'crescent':
 	return vertices
 
 
@@ -74,24 +56,36 @@ def create_payload(shape, n_vertices):
 ## Define simulation parameters
 n_vertices = 128		# Number of payload 'grab points' or vertices
 n_robots = 3 			# Number of robots (id=0 is first robot)
-shape = 'square'		# Shape to test. (only 'circle' for now)
+shape = 'Circle'		# Shape to test. ('Box' or 'Circle'
 
 ## Load the payload object
 payload = create_payload(shape, n_vertices)
 
-# import matplotlib.pyplot as plt
-# x = []
-# y = []
-# for thing in payload:
-# 	x.append(thing[0])
-# 	y.append(thing[1])
-# plt.scatter(x,y)
-# plt.show()
-# print(payload)
+## Visualize error
+supp_time_list = []
+supp_cost_list = []
 
+fig, axs = plt.subplots()
+axs.set_title('All Agents ' + str(shape) + ' Optimal Distribution Error')
+axs.set_xlabel('Time Step')
+axs.set_ylabel('Error')
 
 ## Optimal dynamic distribution (ODR) class
-for _ in range(1):
-	ODR_Planner = ODR(payload, shape, n_robots)
-	ODR_Planner.run(n_iters=1000)
+for n_robots in [3, 5, 10]:
 
+	# Run for each desired n_robots
+	ODR_Planner = ODR(payload, shape, n_robots)
+	t, cost_list, supp_time, supp_cost = ODR_Planner.run(n_iters=1000)
+
+	# If minimum viable solution has been found
+	if supp_time != 0:
+		supp_time_list.append(supp_time)
+		supp_cost_list.append(supp_cost)
+
+	# Plot this series (n_robots trial)
+	axs.plot(t, cost_list, zorder=-1, label=str(n_robots)+' robots')
+
+# Plot Viable solutions
+axs.scatter(supp_time_list, supp_cost_list, c='r', marker='*', s=300, zorder=1, label='Viable Solution')
+axs.legend()
+plt.show()

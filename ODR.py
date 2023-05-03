@@ -173,14 +173,15 @@ class ODR:
         plt.pause(0.01)
         # plt.pause(5)
 
-    def run(self, n_iters=1000):
+    def run(self, visualize=False, n_iters=1000):
 
         # Initialize robots
         self.init_robots()
         # Reset and initialize map
         self.init_map()
         # Initialize plot window
-        self.init_plot()
+        if visualize:
+            self.init_plot()
 
         # plt.pause(10)
 
@@ -221,7 +222,8 @@ class ODR:
             # Now we have several new nodes from the current configuration. Choose best, lowest cost node
             self.extend()
             # Update plot
-            self.update_plot()
+            if visualize:
+                self.update_plot()
 
             # Technically, we should be able to compare this best cost with the last best cost and if it's the same,
             # then we have optimized, HOWEVER, random walk makes it a non-guarantee that we have explored all nodes.
@@ -241,15 +243,18 @@ class ODR:
         best_cost = np.array(np.size(self.all_nodes))
         best_cost.fill(self.best_cost)
 
-        fig, axs = plt.subplots()
-        axs.set_title('Distance between polygon centroid and CoM over time')
-        axs.set_xlabel('Time Steps')
-        axs.set_ylabel('Configuration Cost (error)')
-        axs.plot(t_span, list_of_costs, zorder=-1)
-        # axs.plot(t_span, )
-        axs.scatter(support_time, support_cost, c='r', marker='*', s=300, zorder=1)
+        if visualize:
+            fig, axs = plt.subplots()
+            axs.set_title('Distance between polygon centroid and CoM over time')
+            axs.set_xlabel('Time Steps')
+            axs.set_ylabel('Configuration Cost (error)')
+            axs.plot(t_span, list_of_costs, zorder=-1)
+            if support_time != 0:
+                axs.scatter(support_time, support_cost, c='r', marker='*', s=300, zorder=1)
 
-        plt.show()
+            plt.show()
+
+        return t_span, list_of_costs, support_time, support_cost
 
 
 if __name__ == '__main__':
