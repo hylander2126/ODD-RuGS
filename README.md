@@ -9,6 +9,6 @@ For a square object with 3 agents:
 
 ![Alt text](figures/Square_3.gif)
 
-And for a circular object:
+And for a circular object with 10 agents:
 
-![Alt text](figures/Circle_3.gif)
+![Alt text](figures/Circle_10.gif)
